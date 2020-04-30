@@ -84,6 +84,7 @@ void tokenize_string(char *string, const char *delimiter, TokenizationContext *c
 		copy_and_possibly_realoc(ctx->tokens[i], token);
 		token = strtok(NULL, delimiter);
 	}
+	ctx->tokensCount = i;
 }
 
 void free_tokenization_context(TokenizationContext *ctx)
