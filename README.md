@@ -16,5 +16,7 @@ There is also optional delimiter argument, which can specify tokenization delimi
 
 # Example usage
 `$ somethingThatGeneratesOutput | gsip "0.4"`
+
 or
+
 `$ somethingThatGeneratesOutput | gsip "0.4" " |\n"`
