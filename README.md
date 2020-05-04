@@ -9,8 +9,12 @@ Similarity calculation for string1 and string2 is basically count of words from 
 divided by count of all words in string1:
 `(float)reappearingCount / tokensInFirstStringCount`
 
+There is also optional delimiter argument, which can specify tokenization delimiters.
+
 # Compilation
 `$./compile.sh`
 
 # Example usage
 `$ somethingThatGeneratesOutput | gsip "0.4"`
+or
+`$ somethingThatGeneratesOutput | gsip "0.4" " |\n"`
