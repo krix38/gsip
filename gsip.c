@@ -3,36 +3,87 @@
 #include <string.h>
 #include <limits.h>
 #include <ctype.h>
+#include <errno.h>
 
 #define IGNORE_FILE "gsip.ignore"
 
-#define INITIAL_TOKENS_ARRAY_SIZE 5
-#define INITIAL_STRING_BUFFER_SIZE 1014
+#define INITIAL_TOKENS_ARRAY_SIZE 10
+#define INITIAL_STRING_BUFFER_SIZE 256
+#define DEFAULT_TOKEN_DELIMITER " \n"
 
 typedef struct
 {
-	char **tokens;
-	char *tempBuffer;
+	char *string;
+	int allocatedSize;
+} String;
+
+typedef struct
+{
+	String **tokens;
+	String *tempBuffer;
 	int tempBufferSize;
 	int tokensCount;
 	int tokensArraySize;
 } TokenizationContext;
+
+typedef struct
+{
+	double acceptableRatio;
+	int linesToMatchCount;
+	char **linesToMatch;
+	char *lineToPrint;
+	char *delimiter;
+	TokenizationContext *tokenizationCtx1;
+	TokenizationContext *tokenizationCtx2;
+} PrintLoopContext;
+
+String *create_string()
+{
+	String *string = (String *)malloc(sizeof(String));
+	string->string = malloc(sizeof(char *) * INITIAL_STRING_BUFFER_SIZE);
+	string->allocatedSize = INITIAL_STRING_BUFFER_SIZE;
+	return string;
+}
+
+String *set_string(String *string, char *newStringValue)
+{
+	char *reallocatedPointer;
+	int newSize = strlen(newStringValue);
+	if(newSize > string->allocatedSize)
+	{
+		reallocatedPointer = realloc(string->string, sizeof(char *) * newSize);
+		if(reallocatedPointer == NULL)
+		{
+			fprintf(stderr, "string realloc failed: %s\n", strerror(errno));
+			exit(1);
+		}
+		string->string = reallocatedPointer;
+		string->allocatedSize = newSize;
+	}
+	strcpy(string->string, newStringValue);
+	return string;
+}
+
+void free_string(String *string)
+{
+	free(string->string);
+	free(string);
+}
 
 void initialize_tokens_array(TokenizationContext *ctx)
 {
 	int i;
 	for (i = 0; i < ctx->tokensArraySize; i++)
 	{
-		ctx->tokens[i] = malloc(sizeof(char *) * INITIAL_STRING_BUFFER_SIZE);
+		ctx->tokens[i] = create_string();
 	}
 }
 
 TokenizationContext *allocate_tokenization_context()
 {
 	TokenizationContext *ctx = (TokenizationContext *)malloc(sizeof(TokenizationContext));
-	ctx->tempBuffer = malloc(sizeof(char *) * INITIAL_STRING_BUFFER_SIZE);
-	ctx->tokens = (char **)malloc(sizeof(char *) * INITIAL_TOKENS_ARRAY_SIZE);
-	ctx->tempBufferSize = INITIAL_STRING_BUFFER_SIZE;
+	ctx->tempBuffer = create_string();
+	ctx->tokens = (String **)malloc(sizeof(String) * INITIAL_TOKENS_ARRAY_SIZE);
 	ctx->tokensArraySize = INITIAL_TOKENS_ARRAY_SIZE;
 	ctx->tokensCount = 0;
 	initialize_tokens_array(ctx);
@@ -44,44 +95,32 @@ void reinitialize_tokenization_context(TokenizationContext *ctx)
 	ctx->tokensCount = 0;
 }
 
-void prepare_temp_buffer(TokenizationContext *ctx, char *string)
-{
-	int stringSize = strlen(string);
-	if (ctx->tempBufferSize < stringSize)
-	{
-		ctx->tempBuffer = realloc(ctx->tempBuffer, sizeof(char *) * stringSize);
-		ctx->tempBufferSize = stringSize;
-	}
-	strcpy(ctx->tempBuffer, string);
-}
-
-void copy_and_possibly_realoc(char *firstString, char *secondString)
-{
-	int secondStringSize = strlen(secondString);
-	if (INITIAL_STRING_BUFFER_SIZE < secondStringSize && strlen(firstString) < secondStringSize)
-	{
-		firstString = realloc(firstString, sizeof(char *) * secondStringSize);
-	}
-	strcpy(firstString, secondString);
-}
-
-void tokenize_string(char *string, const char *delimiter, TokenizationContext *ctx)
+void tokenize_string(char *string, const char *specifiedDelimiter, TokenizationContext *ctx)
 {
 	int i, l;
-	prepare_temp_buffer(ctx, string);
-	char *token = strtok(ctx->tempBuffer, delimiter);
+	String **reallocatedTokens;
+	const char defaultDelimiter[] = DEFAULT_TOKEN_DELIMITER;
+  	const char *delimiter = specifiedDelimiter == NULL ? defaultDelimiter : specifiedDelimiter;
+	ctx->tempBuffer = set_string(ctx->tempBuffer, string);
+	char *token = strtok(ctx->tempBuffer->string, delimiter);
 	for (i = 0; token != NULL; i++)
 	{
 		if (i == ctx->tokensArraySize)
 		{
 			ctx->tokensArraySize = ctx->tokensArraySize * 2;
-			ctx->tokens = (char **)realloc(ctx->tokens, sizeof(char *) * ctx->tokensArraySize);
+			reallocatedTokens = (String **)realloc(ctx->tokens, sizeof(String) * ctx->tokensArraySize);
+			if(reallocatedTokens == NULL)
+			{
+                        	fprintf(stderr, "tokens realloc failed: %s\n", strerror(errno));
+                        	exit(1);
+			}
+			ctx->tokens = reallocatedTokens;
 			for (l = i; l < ctx->tokensArraySize; l++)
 			{
-				ctx->tokens[l] = malloc(sizeof(char *) * INITIAL_STRING_BUFFER_SIZE);
+				ctx->tokens[l] = create_string();
 			}
 		}
-		copy_and_possibly_realoc(ctx->tokens[i], token);
+		ctx->tokens[i] = set_string(ctx->tokens[i], token);
 		token = strtok(NULL, delimiter);
 	}
 	ctx->tokensCount = i;
@@ -92,37 +131,39 @@ void free_tokenization_context(TokenizationContext *ctx)
 	int i;
 	for (i = 0; i < ctx->tokensArraySize; i++)
 	{
-		free(ctx->tokens[i]);
+		free_string(ctx->tokens[i]);
 	}
 	free(ctx->tokens);
-	free(ctx->tempBuffer);
+	free_string(ctx->tempBuffer);
 	free(ctx);
 }
 
-double count_reappearing_words(char *firstString, char *secondString, TokenizationContext *ctx1, TokenizationContext *ctx2)
+double count_reappearing_words(PrintLoopContext *printLoopCtx, int lineToMatchIndex)
 {
-	const char delimiter[] = " ";
 	int i, k, reappearingCount, tokensInFirstStringCount;
 
-	tokenize_string(firstString, delimiter, ctx1);
-	tokenize_string(secondString, delimiter, ctx2);
+	TokenizationContext *tokenizationCtx1 = printLoopCtx->tokenizationCtx1;
+	TokenizationContext *tokenizationCtx2 = printLoopCtx->tokenizationCtx2;
+
+	tokenize_string(printLoopCtx->lineToPrint, printLoopCtx->delimiter, tokenizationCtx1);
+	tokenize_string(printLoopCtx->linesToMatch[lineToMatchIndex], printLoopCtx->delimiter, tokenizationCtx2);
 
 	reappearingCount = 0;
-	for (i = 0; i < ctx1->tokensCount; i++)
+	for (i = 0; i < tokenizationCtx1->tokensCount; i++)
 	{
-		for (k = 0; k < ctx2->tokensCount; k++)
+		for (k = 0; k < tokenizationCtx2->tokensCount; k++)
 		{
-			if (strcmp(ctx1->tokens[i], ctx2->tokens[k]) == 0)
+			if (strcmp(tokenizationCtx1->tokens[i]->string, tokenizationCtx2->tokens[k]->string) == 0)
 			{
 				reappearingCount++;
 			}
 		}
 	}
 
-	tokensInFirstStringCount = ctx1->tokensCount;
+	tokensInFirstStringCount = tokenizationCtx1->tokensCount;
 
-	reinitialize_tokenization_context(ctx1);
-	reinitialize_tokenization_context(ctx2);
+	reinitialize_tokenization_context(tokenizationCtx1);
+	reinitialize_tokenization_context(tokenizationCtx2);
 
 	if (tokensInFirstStringCount > 0)
 	{
@@ -172,7 +213,7 @@ char **get_ignore_file_lines_array(int allocateLinesCount, char *fileName)
 	return lines;
 }
 
-void free_memory(int allocateLinesCount, char **lines)
+void free_match_file_memory(int allocateLinesCount, char **lines)
 {
 	int i;
 	for (i = 0; i < allocateLinesCount; i++)
@@ -182,52 +223,71 @@ void free_memory(int allocateLinesCount, char **lines)
 	free(lines);
 }
 
-void print_line_with_acceptable_count_reappearing_words(double acceptableRatio, int linesToMatchCount, char **linesToMatch, char *lineToPrint, TokenizationContext *ctx1, TokenizationContext *ctx2)
+void free_memory(PrintLoopContext *printLoopCtx)
+{
+	free_match_file_memory(printLoopCtx->linesToMatchCount, printLoopCtx->linesToMatch);
+	free_tokenization_context(printLoopCtx->tokenizationCtx1);
+	free_tokenization_context(printLoopCtx->tokenizationCtx2);
+}
+
+void print_line_with_acceptable_count_reappearing_words(PrintLoopContext *printLoopCtx)
 {
 	int i;
 	double ratio;
 	double highestRatio = -1.0;
-	for (i = 0; i < linesToMatchCount; i++)
+	for (i = 0; i < printLoopCtx->linesToMatchCount; i++)
 	{
 		if (highestRatio == -1.0)
 		{
-			highestRatio = count_reappearing_words(lineToPrint, linesToMatch[i], ctx1, ctx2);
+			highestRatio = count_reappearing_words(printLoopCtx, i);
 		}
 		else
 		{
-			ratio = count_reappearing_words(lineToPrint, linesToMatch[i], ctx1, ctx2);
+			ratio = count_reappearing_words(printLoopCtx, i);
 			if (ratio > highestRatio)
 			{
 				highestRatio = ratio;
 			}
 		}
 	}
-	if (highestRatio >= 0.0 && highestRatio <= acceptableRatio)
+	if (highestRatio >= 0.0 && highestRatio <= printLoopCtx->acceptableRatio)
 	{
-		printf("%s", lineToPrint);
+		printf("%s", printLoopCtx->lineToPrint);
 	}
 }
 
 int main(int argc, char **argv)
 {
-	if (argc != 2)
+	if (argc < 2 || argc > 3)
 	{
-		fprintf(stderr, "please provide similarity ratio as argument (0.00 - 1.00)\n");
+		fprintf(
+				stderr, 
+				"please provide similarity ratio as first argument (0.00 - 1.00)\n"
+				"and optionally tokenization delimiter as second argument\n"
+			);
 		return 1;
 	}
-	char buffer[LINE_MAX];
+	char lineToPrint[LINE_MAX];
 	char *eptr;
-	double acceptableRatio = strtod(argv[1], &eptr);
-	int allocateLinesCount = get_file_lines_count(IGNORE_FILE);
-	char **linesToMatch = get_ignore_file_lines_array(allocateLinesCount, IGNORE_FILE);
-	TokenizationContext *ctx1 = allocate_tokenization_context();
-	TokenizationContext *ctx2 = allocate_tokenization_context();
-	while (fgets(buffer, LINE_MAX, stdin))
+	PrintLoopContext printLoopCtx = 
 	{
-		print_line_with_acceptable_count_reappearing_words(acceptableRatio, allocateLinesCount, linesToMatch, buffer, ctx1, ctx2);
+		.delimiter = NULL,
+		.lineToPrint = lineToPrint,
+		.acceptableRatio = strtod(argv[1], &eptr),
+		.tokenizationCtx1 = allocate_tokenization_context(),
+		.tokenizationCtx2 = allocate_tokenization_context(),
+		.linesToMatchCount = get_file_lines_count(IGNORE_FILE),
+	};
+	printLoopCtx.linesToMatch = get_ignore_file_lines_array(printLoopCtx.linesToMatchCount, IGNORE_FILE);
+	if(argc == 3)
+	{
+		printf("setting delimtier");
+		printLoopCtx.delimiter = argv[2];
 	}
-	free_memory(allocateLinesCount, linesToMatch);
-	free_tokenization_context(ctx1);
-	free_tokenization_context(ctx2);
+	while (fgets(printLoopCtx.lineToPrint, LINE_MAX, stdin))
+	{
+		print_line_with_acceptable_count_reappearing_words(&printLoopCtx);
+	}
+	free_memory(&printLoopCtx);
 	return 0;
 }
