@@ -12,7 +12,7 @@ divided by count of all words in string1:
 There is also optional delimiter argument, which can specify tokenization delimiters.
 
 # Compilation
-`$./compile.sh`
+`make`
 
 # Example usage
 `$ somethingThatGeneratesOutput | gsip "0.4"`
