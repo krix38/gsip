@@ -1,18 +1,34 @@
-deps_dirs := $(sort $(dir $(wildcard ./deps/*/)))
-headers := $(foreach dep_dir,$(deps_dirs), -I $(dep_dir)headers)
-deps := $(subst /,,$(subst ./deps/,,$(deps_dirs)))
-objects := $(foreach dep,$(deps), ./deps/$(dep)/obj/$(dep).o) ./obj/gsip.o
+SRCDIR = src
+HDRDIR = headers
+DEPSDIR = deps
+BINNAME = gsip
 
-all:
-	$(foreach dep,$(deps),\
-		mkdir -p ./deps/$(dep)/obj && \
-	        $(CC) -Wall -c ./deps/$(dep)/src/$(dep).c -o ./deps/$(dep)/obj/$(dep).o $(headers) && ) true
-	mkdir -p ./obj
-	$(CC) -Wall -c gsip.c -o ./obj/gsip.o $(headers)
-	mkdir -p ./bin
-	$(CC) -Wall -o ./bin/gsip $(objects)
+DEPSDIRS := $(sort $(dir $(wildcard ./$(DEPSDIR)/*/)))
+SOURCES := $(wildcard $(foreach dir,$(DEPSDIRS),$(dir)$(SRCDIR)/*) $(foreach dir,$(DEPSDIRS),$(dir)$(HDRDIR)/*)) ./$(SRCDIR)/*
 
+CODEFILES := $(filter %.c,$(SOURCES))
+HEADERS := $(filter %.h,$(SOURCES))
+
+INCLUDES := $(foreach dir,$(DEPSDIRS), -I $(dir)headers/)
+OBJECTS := $(subst $(SRCDIR)/,,$(CODEFILES:%.c=%.o)) ./$(BINNAME).o
+
+CFLAGS := -Wall
+
+.SECONDEXPANSION:
+%.o:    $$(addsuffix /%.c,$$(SRCDIR)) $$(addsuffix /%.h,$$(HDRDIR))
+	$(CC) $(CFLAGS) -c $< -o $@ $(INCLUDES)
+
+
+$(BINNAME):	$(OBJECTS)
+	$(CC) $(OBJECTS) -o $(BINNAME)
+
+all:	$(BINNAME)
+
+$(BINNAME).o:	src/$(BINNAME).c
+	$(CC) $(CFLAGS) -c $< -o $@ $(INCLUDES)
+
+.PHONY: clean
 clean:
-	$(foreach deps_dir,$(deps_dirs), rm -r $(deps_dir)obj && ) true
-	rm -r ./obj
-	rm -r ./bin
+	$(foreach dir,$(DEPSDIRS), rm -f $(dir)*.o && ) true
+	rm -f $(BINNAME).o
+	rm -f $(BINNAME)
