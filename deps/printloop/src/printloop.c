@@ -2,13 +2,37 @@
 #include <ratio.h>
 #include <printloop.h>
 
-void map_print_loop_context_to_calculate_ratio_context(RatioCalculationContext *ratioCalculationCtx, PrintLoopContext *printLoopCtx)
+static void map_print_loop_context_to_calculate_ratio_context(RatioCalculationContext *ratioCalculationCtx, PrintLoopContext *printLoopCtx)
 {
-	ratioCalculationCtx->acceptableRatio = printLoopCtx->acceptableRatio;
+	ratioCalculationCtx->acceptableRatio = printLoopCtx->config->acceptableRatio;
 	ratioCalculationCtx->lineToCompare = printLoopCtx->lineToPrint;
-	ratioCalculationCtx->delimiter = printLoopCtx->delimiter;
+	ratioCalculationCtx->delimiter = printLoopCtx->config->delimiter;
 	ratioCalculationCtx->tokenizationCtx1 = printLoopCtx->tokenizationCtx1;
 	ratioCalculationCtx->tokenizationCtx2 = printLoopCtx->tokenizationCtx2;
+}
+
+static bool print_line_condition_met(double ratio, Configuration *config)
+{
+	if (config->reverseMatch)
+	{
+		return ratio >= 0.0 && ratio <= config->acceptableRatio;
+	}
+	return ratio > config->acceptableRatio;
+}
+
+static void process_line_to_print(double highestRatio, PrintLoopContext *printLoopCtx)
+{
+	if (print_line_condition_met(highestRatio, printLoopCtx->config))
+	{
+		if (printLoopCtx->config->printRatio)
+		{
+			printf("%.2f: %s", highestRatio, printLoopCtx->lineToPrint);
+		}
+		else
+		{
+			printf("%s", printLoopCtx->lineToPrint);
+		}
+	}
 }
 
 void print_line_with_acceptable_count_reappearing_words(PrintLoopContext *printLoopCtx)
@@ -35,8 +59,5 @@ void print_line_with_acceptable_count_reappearing_words(PrintLoopContext *printL
 			}
 		}
 	}
-	if (highestRatio >= 0.0 && highestRatio <= printLoopCtx->acceptableRatio)
-	{
-		printf("%s", printLoopCtx->lineToPrint);
-	}
+	process_line_to_print(highestRatio, printLoopCtx);
 }

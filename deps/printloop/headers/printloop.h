@@ -1,3 +1,10 @@
+#ifndef CONFIGURATION_HEADER
+#define CONFIGURATION_HEADER
+
+#include <configuration.h>
+
+#endif
+
 #ifndef TOKENIZE_HEADER
 #define TOKENIZE_HEADER
 
@@ -16,16 +23,14 @@
 #define PRINTLOOP_STRUCT
 typedef struct
 {
-	double acceptableRatio;
+	Configuration *config;
 	int linesToMatchCount;
 	char **linesToMatch;
 	char *lineToPrint;
-	char *delimiter;
 	TokenizationContext *tokenizationCtx1;
 	TokenizationContext *tokenizationCtx2;
 } PrintLoopContext;
 
 #endif
 
-void map_print_loop_context_to_calculate_ratio_context(RatioCalculationContext *ratioCalculationCtx, PrintLoopContext *printLoopCtx);
 void print_line_with_acceptable_count_reappearing_words(PrintLoopContext *printLoopCtx);

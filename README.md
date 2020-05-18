@@ -14,9 +14,23 @@ There is also optional delimiter argument, which can specify tokenization delimi
 # Compilation
 `make`
 
+# Usage
+```
+% ./gsip -h
+
+usage: ./gsip -[fahvrd]
+
+  Options:
+    -f [MATCH FILE NAME]            [MANDATORY] name of file with lines to match
+    -a [ACCEPTABLE RATIO]           [MANDATORY] acceptable ratio (value between 0.00-1.00)
+    -h                              print this help
+    -v                              print highest ratio per line
+    -r                              reverse match (print lines least matching the match file)
+    -d                              set delimiter for tokenization (" \n" is default)
+```
 # Example usage
-`$ somethingThatGeneratesOutput | gsip "0.4"`
+`$ somethingThatGeneratesOutput | gsip -a "0.4"` -f matchfile
 
 or
 
-`$ somethingThatGeneratesOutput | gsip "0.4" " |\n"`
+`$ somethingThatGeneratesOutput | gsip -a "0.4" -f matchfile -d " |\n"`

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <utils.h>
 
 void *allocate(size_t size)
 {
@@ -7,7 +8,7 @@ void *allocate(size_t size)
         if (allocated == NULL)
         {
                 fprintf(stderr, "memory allocation failure\n");
-                exit(1);
+                exit(MEMORY_ALLOC_FAILURE);
         }
         return allocated;
 }

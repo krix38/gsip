@@ -9,7 +9,7 @@ SOURCES := $(wildcard $(foreach dir,$(DEPSDIRS),$(dir)$(SRCDIR)/*) $(foreach dir
 CODEFILES := $(filter %.c,$(SOURCES))
 HEADERS := $(filter %.h,$(SOURCES))
 
-INCLUDES := $(foreach dir,$(DEPSDIRS), -I $(dir)headers/)
+INCLUDES := $(foreach dir,$(DEPSDIRS), -I $(dir)$(HDRDIR)/)
 OBJECTS := $(subst $(SRCDIR)/,,$(CODEFILES:%.c=%.o)) ./$(BINNAME).o
 
 CFLAGS := -Wall

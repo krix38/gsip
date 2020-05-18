@@ -6,7 +6,6 @@
 #include <tokenize.h>
 
 #define INITIAL_TOKENS_ARRAY_SIZE 10
-#define DEFAULT_TOKEN_DELIMITER " \n"
 
 static void initialize_tokens_array(TokenizationContext *ctx)
 {
@@ -17,9 +16,8 @@ static void initialize_tokens_array(TokenizationContext *ctx)
 	}
 }
 
-TokenizationContext *allocate_tokenization_context()
+TokenizationContext *initialize_tokenization_context(TokenizationContext *ctx)
 {
-	TokenizationContext *ctx = (TokenizationContext *)allocate(sizeof(TokenizationContext));
 	ctx->tempBuffer = create_string();
 	ctx->tokens = (String **)allocate(sizeof(String) * INITIAL_TOKENS_ARRAY_SIZE);
 	ctx->tokensArraySize = INITIAL_TOKENS_ARRAY_SIZE;
@@ -33,12 +31,10 @@ void reinitialize_tokenization_context(TokenizationContext *ctx)
 	ctx->tokensCount = 0;
 }
 
-void tokenize_string(char *string, const char *specifiedDelimiter, TokenizationContext *ctx)
+void tokenize_string(char *string, const char *delimiter, TokenizationContext *ctx)
 {
 	int i, l;
 	String **reallocatedTokens;
-	const char defaultDelimiter[] = DEFAULT_TOKEN_DELIMITER;
-	const char *delimiter = specifiedDelimiter == NULL ? defaultDelimiter : specifiedDelimiter;
 	ctx->tempBuffer = set_string(ctx->tempBuffer, string);
 	char *token = strtok(ctx->tempBuffer->string, delimiter);
 	for (i = 0; token != NULL; i++)
@@ -73,5 +69,4 @@ void free_tokenization_context(TokenizationContext *ctx)
 	}
 	free(ctx->tokens);
 	free_string(ctx->tempBuffer);
-	free(ctx);
 }
