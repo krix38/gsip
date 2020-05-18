@@ -29,7 +29,7 @@ usage: ./gsip -[fahvrd]
     -d                              set delimiter for tokenization (" \n" is default)
 ```
 # Example usage
-`$ somethingThatGeneratesOutput | gsip -a "0.4"` -f matchfile
+`$ somethingThatGeneratesOutput | gsip -a "0.4" -f matchfile`
 
 or
 
